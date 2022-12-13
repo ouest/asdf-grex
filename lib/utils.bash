@@ -45,7 +45,7 @@ install_version() {
   local ext
   case "$OSTYPE" in
   darwin*)
-    platform="apple-drawin"
+    platform="apple-darwin"
     ;;
   linux*)
     platform="unknown-linux-musl"
