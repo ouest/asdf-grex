@@ -2,13 +2,11 @@
 
 set -euo pipefail
 
-# TODO: Ensure this is the correct GitHub homepage where releases can be downloaded for grex.
-GH_REPO="https://github.com/pemistahl/grex"
-TOOL_NAME="grex"
-TOOL_TEST="grex --help"
+readonly github_repository_url="https://github.com/pemistahl/grex"
+readonly tool_name="grex"
 
 fail() {
-  echo -e "asdf-$TOOL_NAME: $*"
+  echo -e "asdf-${tool_name}: $*"
   exit 1
 }
 
@@ -31,44 +29,64 @@ list_github_tags() {
 }
 
 list_all_versions() {
-  # TODO: Adapt this. By default we simply list the tag names from GitHub releases.
-  # Change this function if grex has other means of determining installable versions.
   list_github_tags
-}
-
-download_release() {
-  local version filename url
-  version="$1"
-  filename="$2"
-
-  # TODO: Adapt the release URL convention for grex
-  url="$GH_REPO/archive/v${version}.tar.gz"
-
-  echo "* Downloading $TOOL_NAME release $version..."
-  curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
 }
 
 install_version() {
   local install_type="$1"
   local version="$2"
-  local install_path="${3%/bin}/bin"
+  local install_path="$3/bin"
 
-  if [ "$install_type" != "version" ]; then
-    fail "asdf-$TOOL_NAME supports release installs only"
+  if [ "${install_type}" != "version" ]; then
+    fail "asdf-${tool_name} supports release installs only"
+  fi
+
+  local platform
+  local ext
+  case "$OSTYPE" in
+  darwin*)
+    platform="apple-drawin"
+    ;;
+  linux*)
+    platform="unknown-linux-musl"
+    ;;
+  *)
+    fail "Unsupported platform"
+    ;;
+  esac
+
+  local architecture
+  case "$(uname -m)" in
+  x86_64)
+    architecture="x86_64"
+    ;;
+  arm64)
+    architecture="aarch64"
+    ;;
+  *)
+    fail "Unsupported architecture"
+    ;;
+  esac
+
+  if [ "${platform}" = "unknown-linux-musl" -a "${architecture}" = "aarch64" ]; then
+    fail "Unsupported platform, architecture"
   fi
 
   (
-    mkdir -p "$install_path"
-    cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
+    local download_filename="${install_path}/${tool_name}-${version}.tar.gz"
+    local url="${github_repository_url}/releases/download/v${version}/${tool_name}-v${version}-${architecture}-${platform}.tar.gz"
 
-    # TODO: Assert grex executable exists.
-    local tool_cmd
-    tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
-    test -x "$install_path/$tool_cmd" || fail "Expected $install_path/$tool_cmd to be executable."
+    mkdir -p "${install_path}"
+    curl "${curl_opts[@]}" -o "${download_filename}" -C - "${url}" || fail "Could not download ${url}"
+    tar -xzf "${download_filename}" -C "${install_path}" || fail "Could not extract ${download_filename}"
+    rm "${download_filename}"
 
-    echo "$TOOL_NAME $version installation was successful!"
+    chmod +x "${install_path}/${tool_name}"
+    test -x "${install_path}/${tool_name}" || fail "Expected ${install_path}/${tool_name} to be executable."
+
+    echo "${tool_name} ${version} installation was successful!"
   ) || (
-    rm -rf "$install_path"
-    fail "An error occurred while installing $TOOL_NAME $version."
+    rm -rf "${install_path}"
+    fail "An error ocurred while installing ${tool_name} ${version}."
   )
 }
